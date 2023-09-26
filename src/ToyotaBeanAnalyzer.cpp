@@ -338,7 +338,7 @@ void ToyotaBeanAnalyzer::WorkerThread()
         MakeFrameFromBits(eom, mResults, 7);
 
         // EOM should equal exactly 0b01111110
-        if (eom.Data != 0b0111'1110)
+        if (eom.Data != 0b01111110)
         {
             continue;
         }

@@ -19,8 +19,8 @@ public:
     U32 mBitRate;
 
 protected:
-    std::auto_ptr<AnalyzerSettingInterfaceChannel> mInputChannelInterface;
-    std::auto_ptr<AnalyzerSettingInterfaceInteger> mBitRateInterface;
+    std::unique_ptr<AnalyzerSettingInterfaceChannel> mInputChannelInterface;
+    std::unique_ptr<AnalyzerSettingInterfaceInteger> mBitRateInterface;
 };
 
 #endif // TOYOTABEAN_ANALYZER_SETTINGS

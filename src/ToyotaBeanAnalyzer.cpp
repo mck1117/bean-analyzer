@@ -26,7 +26,7 @@ class BitUnstuffer
 {
 public:
     BitUnstuffer(
-        AnalyzerChannelData* data, std::auto_ptr<ToyotaBeanAnalyzerResults> results, Channel channel, U32 bitTime)
+        AnalyzerChannelData* data, std::unique_ptr<ToyotaBeanAnalyzerResults>& results, Channel channel, U32 bitTime)
         : mData(data), mResults(results), mBitTime(bitTime), mChannel(channel)
     {
     }
@@ -60,18 +60,24 @@ public:
         if (expectStuff)
         {
             mData->Advance(mBitTime);
-            // mark the stuffed bit with the square
-            mResults->AddMarker(mData->GetSampleNumber(), AnalyzerResults::Square, mChannel);
             bool stuffBit = mData->GetBitState() == BIT_HIGH;
 
             // Stuff bit should be opposite the last data bit
             // If not, it's a bit stuffing error
             if (stuffBit == bit)
             {
-                throw "bit stuff err";
+                // This is a mis-stuff, mark it as an error
+                mResults->AddMarker(mData->GetSampleNumber(), AnalyzerResults::ErrorX, mChannel);
+
+                // TODO: return error, not just false
+
+                return false;
             }
             else
             {
+                // mark the stuffed bit with the square
+                mResults->AddMarker(mData->GetSampleNumber(), AnalyzerResults::Square, mChannel);
+
                 // The last bit was now the stuffed bit, reset state to that
                 mLastBit = stuffBit;
                 mBitsInSequence = 1;
@@ -102,7 +108,7 @@ public:
 
 private:
     AnalyzerChannelData* mData;
-    std::auto_ptr<ToyotaBeanAnalyzerResults> mResults;
+    std::unique_ptr<ToyotaBeanAnalyzerResults>& mResults;
     Channel mChannel;
     U32 mBitTime;
 
@@ -151,12 +157,12 @@ void ToyotaBeanAnalyzer::WorkerThread()
         uint8_t data[11];
 
         // Actual number of data bytes is (ml - 3 for dstId, mesId, crc)
-        _ASSERT(ml > 3 && ml <= 14);
+        //_ASSERT(ml > 3 && ml <= 14);
         size_t dataBytes = ml - 3;
-        for (size_t i = 0; i < dataBytes; i++)
-        {
-            data[i] = bits.ReadByte();
-        }
+        //for (size_t i = 0; i < dataBytes; i++)
+        //{
+        //    data[i] = bits.ReadByte();
+        //}
 
         uint8_t crc = bits.ReadByte();
 
@@ -171,6 +177,10 @@ void ToyotaBeanAnalyzer::WorkerThread()
         frame.AddInteger("ML", ml);
         frame.AddInteger("DST-ID", dstId);
         frame.AddInteger("MES-ID", mesId);
+        // frame.AddByteArray("Data", data, dataBytes);
+        frame.AddInteger("CRC8", crc);
+        frame.AddInteger("RSP", rsp);
+        frame.AddInteger("EOM", eom);
 
         mResults->AddFrameV2(frame, "bean", frameStartSample, mSerial->GetSampleNumber());
         mResults->CommitResults();

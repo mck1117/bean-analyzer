@@ -24,8 +24,8 @@ public:
     virtual bool NeedsRerun();
 
 protected: // vars
-    std::auto_ptr<ToyotaBeanAnalyzerSettings> mSettings;
-    std::auto_ptr<ToyotaBeanAnalyzerResults> mResults;
+    std::unique_ptr<ToyotaBeanAnalyzerSettings> mSettings;
+    std::unique_ptr<ToyotaBeanAnalyzerResults> mResults;
     AnalyzerChannelData* mSerial;
 
     ToyotaBeanSimulationDataGenerator mSimulationDataGenerator;

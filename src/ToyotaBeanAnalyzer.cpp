@@ -1,114 +1,115 @@
 #include "ToyotaBeanAnalyzer.h"
+
 #include "ToyotaBeanAnalyzerSettings.h"
+
 #include <AnalyzerChannelData.h>
 
 ToyotaBeanAnalyzer::ToyotaBeanAnalyzer()
-:	Analyzer2(),  
-	mSettings( new ToyotaBeanAnalyzerSettings() ),
-	mSimulationInitilized( false )
+    : Analyzer2(), mSettings(new ToyotaBeanAnalyzerSettings()), mSimulationInitilized(false)
 {
-	SetAnalyzerSettings( mSettings.get() );
+    SetAnalyzerSettings(mSettings.get());
 }
 
 ToyotaBeanAnalyzer::~ToyotaBeanAnalyzer()
 {
-	KillThread();
+    KillThread();
 }
 
 void ToyotaBeanAnalyzer::SetupResults()
 {
-	mResults.reset( new ToyotaBeanAnalyzerResults( this, mSettings.get() ) );
-	SetAnalyzerResults( mResults.get() );
-	mResults->AddChannelBubblesWillAppearOn( mSettings->mInputChannel );
+    mResults.reset(new ToyotaBeanAnalyzerResults(this, mSettings.get()));
+    SetAnalyzerResults(mResults.get());
+    mResults->AddChannelBubblesWillAppearOn(mSettings->mInputChannel);
 }
 
 void ToyotaBeanAnalyzer::WorkerThread()
 {
-	mSampleRateHz = GetSampleRate();
+    mSampleRateHz = GetSampleRate();
 
-	mSerial = GetAnalyzerChannelData( mSettings->mInputChannel );
+    mSerial = GetAnalyzerChannelData(mSettings->mInputChannel);
 
-	if( mSerial->GetBitState() == BIT_LOW )
-		mSerial->AdvanceToNextEdge();
+    if (mSerial->GetBitState() == BIT_LOW)
+        mSerial->AdvanceToNextEdge();
 
-	U32 samples_per_bit = mSampleRateHz / mSettings->mBitRate;
-	U32 samples_to_first_center_of_first_data_bit = U32( 1.5 * double( mSampleRateHz ) / double( mSettings->mBitRate ) );
+    U32 samples_per_bit = mSampleRateHz / mSettings->mBitRate;
+    U32 samples_to_first_center_of_first_data_bit = U32(1.5 * double(mSampleRateHz) / double(mSettings->mBitRate));
 
-	for( ; ; )
-	{
-		U8 data = 0;
-		U8 mask = 1 << 7;
-		
-		mSerial->AdvanceToNextEdge(); //falling edge -- beginning of the start bit
+    for (;;)
+    {
+        U8 data = 0;
+        U8 mask = 1 << 7;
 
-		U64 starting_sample = mSerial->GetSampleNumber();
+        mSerial->AdvanceToNextEdge(); // falling edge -- beginning of the start bit
 
-		mSerial->Advance( samples_to_first_center_of_first_data_bit );
+        U64 starting_sample = mSerial->GetSampleNumber();
 
-		for( U32 i=0; i<8; i++ )
-		{
-			//let's put a dot exactly where we sample this bit:
-			mResults->AddMarker( mSerial->GetSampleNumber(), AnalyzerResults::Dot, mSettings->mInputChannel );
+        mSerial->Advance(samples_to_first_center_of_first_data_bit);
 
-			if( mSerial->GetBitState() == BIT_HIGH )
-				data |= mask;
+        for (U32 i = 0; i < 8; i++)
+        {
+            // let's put a dot exactly where we sample this bit:
+            mResults->AddMarker(mSerial->GetSampleNumber(), AnalyzerResults::Dot, mSettings->mInputChannel);
 
-			mSerial->Advance( samples_per_bit );
+            if (mSerial->GetBitState() == BIT_HIGH)
+                data |= mask;
 
-			mask = mask >> 1;
-		}
+            mSerial->Advance(samples_per_bit);
 
+            mask = mask >> 1;
+        }
 
-		//we have a byte to save. 
-		Frame frame;
-		frame.mData1 = data;
-		frame.mFlags = 0;
-		frame.mStartingSampleInclusive = starting_sample;
-		frame.mEndingSampleInclusive = mSerial->GetSampleNumber();
+        // we have a byte to save.
+        Frame frame;
+        frame.mData1 = data;
+        frame.mFlags = 0;
+        frame.mStartingSampleInclusive = starting_sample;
+        frame.mEndingSampleInclusive = mSerial->GetSampleNumber();
 
-		mResults->AddFrame( frame );
-		mResults->CommitResults();
-		ReportProgress( frame.mEndingSampleInclusive );
-	}
+        mResults->AddFrame(frame);
+        mResults->CommitResults();
+        ReportProgress(frame.mEndingSampleInclusive);
+    }
 }
 
 bool ToyotaBeanAnalyzer::NeedsRerun()
 {
-	return false;
+    return false;
 }
 
-U32 ToyotaBeanAnalyzer::GenerateSimulationData( U64 minimum_sample_index, U32 device_sample_rate, SimulationChannelDescriptor** simulation_channels )
+U32 ToyotaBeanAnalyzer::GenerateSimulationData(
+    U64 minimum_sample_index, U32 device_sample_rate, SimulationChannelDescriptor** simulation_channels)
 {
-	if( mSimulationInitilized == false )
-	{
-		mSimulationDataGenerator.Initialize( GetSimulationSampleRate(), mSettings.get() );
-		mSimulationInitilized = true;
-	}
+    if (mSimulationInitilized == false)
+    {
+        mSimulationDataGenerator.Initialize(GetSimulationSampleRate(), mSettings.get());
+        mSimulationInitilized = true;
+    }
 
-	return mSimulationDataGenerator.GenerateSimulationData( minimum_sample_index, device_sample_rate, simulation_channels );
+    return mSimulationDataGenerator.GenerateSimulationData(
+        minimum_sample_index, device_sample_rate, simulation_channels);
 }
 
 U32 ToyotaBeanAnalyzer::GetMinimumSampleRateHz()
 {
-	return mSettings->mBitRate * 4;
+    return mSettings->mBitRate * 4;
 }
 
 const char* ToyotaBeanAnalyzer::GetAnalyzerName() const
 {
-	return "ToyotaBean";
+    return "ToyotaBean";
 }
 
 const char* GetAnalyzerName()
 {
-	return "ToyotaBean";
+    return "ToyotaBean";
 }
 
 Analyzer* CreateAnalyzer()
 {
-	return new ToyotaBeanAnalyzer();
+    return new ToyotaBeanAnalyzer();
 }
 
-void DestroyAnalyzer( Analyzer* analyzer )
+void DestroyAnalyzer(Analyzer* analyzer)
 {
-	delete analyzer;
+    delete analyzer;
 }

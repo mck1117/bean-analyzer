@@ -2,16 +2,16 @@
 
 #include <AnalyzerHelpers.h>
 
-ToyotaBeanAnalyzerSettings::ToyotaBeanAnalyzerSettings() : mInputChannel(UNDEFINED_CHANNEL), mBitRate(9600)
+ToyotaBeanAnalyzerSettings::ToyotaBeanAnalyzerSettings() : mInputChannel(UNDEFINED_CHANNEL), mBitRate(10000)
 {
     mInputChannelInterface.reset(new AnalyzerSettingInterfaceChannel());
-    mInputChannelInterface->SetTitleAndTooltip("Serial", "Standard ToyotaBean");
+    mInputChannelInterface->SetTitleAndTooltip("BEAN", "Standard ToyotaBean");
     mInputChannelInterface->SetChannel(mInputChannel);
 
     mBitRateInterface.reset(new AnalyzerSettingInterfaceInteger());
     mBitRateInterface->SetTitleAndTooltip("Bit Rate (Bits/S)", "Specify the bit rate in bits per second.");
-    mBitRateInterface->SetMax(6000000);
-    mBitRateInterface->SetMin(1);
+    mBitRateInterface->SetMax(100000);
+    mBitRateInterface->SetMin(1000);
     mBitRateInterface->SetInteger(mBitRate);
 
     AddInterface(mInputChannelInterface.get());

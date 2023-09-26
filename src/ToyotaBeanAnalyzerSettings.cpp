@@ -1,13 +1,13 @@
-#include "SimpleSerialAnalyzerSettings.h"
+#include "ToyotaBeanAnalyzerSettings.h"
 #include <AnalyzerHelpers.h>
 
 
-SimpleSerialAnalyzerSettings::SimpleSerialAnalyzerSettings()
+ToyotaBeanAnalyzerSettings::ToyotaBeanAnalyzerSettings()
 :	mInputChannel( UNDEFINED_CHANNEL ),
 	mBitRate( 9600 )
 {
 	mInputChannelInterface.reset( new AnalyzerSettingInterfaceChannel() );
-	mInputChannelInterface->SetTitleAndTooltip( "Serial", "Standard Simple Serial" );
+	mInputChannelInterface->SetTitleAndTooltip( "Serial", "Standard ToyotaBean" );
 	mInputChannelInterface->SetChannel( mInputChannel );
 
 	mBitRateInterface.reset( new AnalyzerSettingInterfaceInteger() );
@@ -27,28 +27,28 @@ SimpleSerialAnalyzerSettings::SimpleSerialAnalyzerSettings()
 	AddChannel( mInputChannel, "Serial", false );
 }
 
-SimpleSerialAnalyzerSettings::~SimpleSerialAnalyzerSettings()
+ToyotaBeanAnalyzerSettings::~ToyotaBeanAnalyzerSettings()
 {
 }
 
-bool SimpleSerialAnalyzerSettings::SetSettingsFromInterfaces()
+bool ToyotaBeanAnalyzerSettings::SetSettingsFromInterfaces()
 {
 	mInputChannel = mInputChannelInterface->GetChannel();
 	mBitRate = mBitRateInterface->GetInteger();
 
 	ClearChannels();
-	AddChannel( mInputChannel, "Simple Serial", true );
+	AddChannel( mInputChannel, "ToyotaBean", true );
 
 	return true;
 }
 
-void SimpleSerialAnalyzerSettings::UpdateInterfacesFromSettings()
+void ToyotaBeanAnalyzerSettings::UpdateInterfacesFromSettings()
 {
 	mInputChannelInterface->SetChannel( mInputChannel );
 	mBitRateInterface->SetInteger( mBitRate );
 }
 
-void SimpleSerialAnalyzerSettings::LoadSettings( const char* settings )
+void ToyotaBeanAnalyzerSettings::LoadSettings( const char* settings )
 {
 	SimpleArchive text_archive;
 	text_archive.SetString( settings );
@@ -57,12 +57,12 @@ void SimpleSerialAnalyzerSettings::LoadSettings( const char* settings )
 	text_archive >> mBitRate;
 
 	ClearChannels();
-	AddChannel( mInputChannel, "Simple Serial", true );
+	AddChannel( mInputChannel, "ToyotaBean", true );
 
 	UpdateInterfacesFromSettings();
 }
 
-const char* SimpleSerialAnalyzerSettings::SaveSettings()
+const char* ToyotaBeanAnalyzerSettings::SaveSettings()
 {
 	SimpleArchive text_archive;
 

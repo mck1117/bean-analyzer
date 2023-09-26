@@ -1,14 +1,14 @@
-#ifndef SIMPLESERIAL_ANALYZER_SETTINGS
-#define SIMPLESERIAL_ANALYZER_SETTINGS
+#ifndef TOYOTABEAN_ANALYZER_SETTINGS
+#define TOYOTABEAN_ANALYZER_SETTINGS
 
 #include <AnalyzerSettings.h>
 #include <AnalyzerTypes.h>
 
-class SimpleSerialAnalyzerSettings : public AnalyzerSettings
+class ToyotaBeanAnalyzerSettings : public AnalyzerSettings
 {
 public:
-	SimpleSerialAnalyzerSettings();
-	virtual ~SimpleSerialAnalyzerSettings();
+	ToyotaBeanAnalyzerSettings();
+	virtual ~ToyotaBeanAnalyzerSettings();
 
 	virtual bool SetSettingsFromInterfaces();
 	void UpdateInterfacesFromSettings();
@@ -24,4 +24,4 @@ protected:
 	std::auto_ptr< AnalyzerSettingInterfaceInteger >	mBitRateInterface;
 };
 
-#endif //SIMPLESERIAL_ANALYZER_SETTINGS
+#endif //TOYOTABEAN_ANALYZER_SETTINGS

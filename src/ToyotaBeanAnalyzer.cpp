@@ -1,28 +1,28 @@
-#include "SimpleSerialAnalyzer.h"
-#include "SimpleSerialAnalyzerSettings.h"
+#include "ToyotaBeanAnalyzer.h"
+#include "ToyotaBeanAnalyzerSettings.h"
 #include <AnalyzerChannelData.h>
 
-SimpleSerialAnalyzer::SimpleSerialAnalyzer()
+ToyotaBeanAnalyzer::ToyotaBeanAnalyzer()
 :	Analyzer2(),  
-	mSettings( new SimpleSerialAnalyzerSettings() ),
+	mSettings( new ToyotaBeanAnalyzerSettings() ),
 	mSimulationInitilized( false )
 {
 	SetAnalyzerSettings( mSettings.get() );
 }
 
-SimpleSerialAnalyzer::~SimpleSerialAnalyzer()
+ToyotaBeanAnalyzer::~ToyotaBeanAnalyzer()
 {
 	KillThread();
 }
 
-void SimpleSerialAnalyzer::SetupResults()
+void ToyotaBeanAnalyzer::SetupResults()
 {
-	mResults.reset( new SimpleSerialAnalyzerResults( this, mSettings.get() ) );
+	mResults.reset( new ToyotaBeanAnalyzerResults( this, mSettings.get() ) );
 	SetAnalyzerResults( mResults.get() );
 	mResults->AddChannelBubblesWillAppearOn( mSettings->mInputChannel );
 }
 
-void SimpleSerialAnalyzer::WorkerThread()
+void ToyotaBeanAnalyzer::WorkerThread()
 {
 	mSampleRateHz = GetSampleRate();
 
@@ -72,12 +72,12 @@ void SimpleSerialAnalyzer::WorkerThread()
 	}
 }
 
-bool SimpleSerialAnalyzer::NeedsRerun()
+bool ToyotaBeanAnalyzer::NeedsRerun()
 {
 	return false;
 }
 
-U32 SimpleSerialAnalyzer::GenerateSimulationData( U64 minimum_sample_index, U32 device_sample_rate, SimulationChannelDescriptor** simulation_channels )
+U32 ToyotaBeanAnalyzer::GenerateSimulationData( U64 minimum_sample_index, U32 device_sample_rate, SimulationChannelDescriptor** simulation_channels )
 {
 	if( mSimulationInitilized == false )
 	{
@@ -88,24 +88,24 @@ U32 SimpleSerialAnalyzer::GenerateSimulationData( U64 minimum_sample_index, U32 
 	return mSimulationDataGenerator.GenerateSimulationData( minimum_sample_index, device_sample_rate, simulation_channels );
 }
 
-U32 SimpleSerialAnalyzer::GetMinimumSampleRateHz()
+U32 ToyotaBeanAnalyzer::GetMinimumSampleRateHz()
 {
 	return mSettings->mBitRate * 4;
 }
 
-const char* SimpleSerialAnalyzer::GetAnalyzerName() const
+const char* ToyotaBeanAnalyzer::GetAnalyzerName() const
 {
-	return "Simple Serial";
+	return "ToyotaBean";
 }
 
 const char* GetAnalyzerName()
 {
-	return "Simple Serial";
+	return "ToyotaBean";
 }
 
 Analyzer* CreateAnalyzer()
 {
-	return new SimpleSerialAnalyzer();
+	return new ToyotaBeanAnalyzer();
 }
 
 void DestroyAnalyzer( Analyzer* analyzer )

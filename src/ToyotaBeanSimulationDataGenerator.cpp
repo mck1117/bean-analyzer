@@ -65,6 +65,15 @@ struct BitStuffer
         }
     }
 
+    void WriteByte(uint8_t data, U32 samples_per_bit)
+    {
+        for (size_t i = 0; i < 8; i++)
+        {
+            Write((data & 0x80) ? true : false, samples_per_bit);
+            data = data << 1;
+        }
+    }
+
 private:
     SimulationChannelDescriptor& mData;
 
@@ -79,18 +88,34 @@ void ToyotaBeanSimulationDataGenerator::CreateSerialByte()
     mSerialSimulationData.Advance(10 * samples_per_bit);
 
     // start bit
-    mSerialSimulationData.TransitionIfNeeded(BIT_LOW);
+    mSerialSimulationData.TransitionIfNeeded(BIT_HIGH);
     mSerialSimulationData.Advance(samples_per_bit);
 
     BitStuffer bs(mSerialSimulationData);
 
-    // 64 random data bits
-    for (size_t i = 0; i < 64; i++)
+    uint8_t pri = rand() % 0xF;
+    uint8_t dataLength = rand() % 10 + 1;
+
+    uint8_t firstByte = pri << 4 | (dataLength + 3);
+
+    bs.WriteByte(firstByte, samples_per_bit);
+
+    // DST-ID
+    bs.WriteByte(rand() & 0xFF, samples_per_bit);
+    // MES-ID
+    bs.WriteByte(rand() & 0xFF, samples_per_bit);
+
+    // 1-11 data bytes
+    for (size_t i = 0; i < dataLength; i++)
     {
-        bs.Write((rand() & 1) == 0, samples_per_bit);
-        // bs.Write(false, samples_per_bit);
-        // bs.Write(true, samples_per_bit);
+        bs.WriteByte(rand() & 0xFF, samples_per_bit);
     }
+
+    // CRC byte (todo: real CRC!)
+    bs.WriteByte(rand() & 0xFF, samples_per_bit);
+
+    // End of frame
+    bs.WriteByte(0b01111110, samples_per_bit);
 
     mSerialSimulationData.TransitionIfNeeded(BIT_LOW);
     mSerialSimulationData.Advance(10 * samples_per_bit);

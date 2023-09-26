@@ -148,7 +148,7 @@ public:
     {
         uint8_t result = 0;
 
-        // TODO: is it MSB first or LSB first?
+        // MSB first
         for (size_t i = 0; i < bits; i++)
         {
             result = result << 1;
@@ -195,6 +195,7 @@ void ToyotaBeanAnalyzer::WorkerThread()
     mSerial = GetAnalyzerChannelData(mSettings->mInputChannel);
 
     U32 samples_per_bit = mSampleRateHz / mSettings->mBitRate;
+    // MSB first
     // 1 - High start bit
     // 4 - priority bits
     // 4 - message length bits (ID + DATA)
@@ -269,7 +270,7 @@ void ToyotaBeanAnalyzer::WorkerThread()
 
         // Now we know exactly how many bits we should have read in
         // TODO: what is correct value here?
-        size_t expectedBitsRemaining = 8 * ml + 40 - 8;
+        size_t expectedBitsRemaining = 8 * ml + 11;
 
         if (bq.size() != expectedBitsRemaining)
         {
@@ -308,9 +309,16 @@ void ToyotaBeanAnalyzer::WorkerThread()
         frame.AddByteArray("Data", data, dataBytes);
         frame.AddInteger("CRC8", crc);
         frame.AddInteger("RSP", rsp);
-        frame.AddInteger("EOM", eom);
-
         mResults->AddFrameV2(frame, "bean", frameStartSample, mSerial->GetSampleNumber());
+
+        Frame f;
+        f.mStartingSampleInclusive = frameStartSample;
+        f.mEndingSampleInclusive = mSerial->GetSampleNumber();
+        f.mType = 0;
+        f.mData1 = dstId;
+        f.mData2 = mesId;
+        mResults->AddFrame(f);
+
         mResults->CommitResults();
         ReportProgress(mSerial->GetSampleNumber());
 

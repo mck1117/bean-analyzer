@@ -6,7 +6,7 @@
 #include <queue>
 
 ToyotaBeanAnalyzer::ToyotaBeanAnalyzer()
-    : Analyzer2(), mSettings(new ToyotaBeanAnalyzerSettings())
+    : Analyzer2(), mSettings(new ToyotaBeanAnalyzerSettings()), mSimulationInitilized(false)
 {
     SetAnalyzerSettings(mSettings.get());
 }

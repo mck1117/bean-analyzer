@@ -75,15 +75,23 @@ public:
             // If not, it's a bit stuffing error
             if (stuffBit == bit)
             {
-                // This is a mis-stuff, mark it as an error
-                mResults->AddMarker(mData->GetSampleNumber(), AnalyzerResults::ErrorX, mChannel);
+                if (bit)
+                {
+                    // Mis-stuff high is error
+                    mResults->AddMarker(mData->GetSampleNumber(), AnalyzerResults::ErrorX, mChannel);
+                }
+                else
+                {
+                    // Mis-stuff low is EOF
+                    mResults->AddMarker(mData->GetSampleNumber(), AnalyzerResults::Stop, mChannel);
+                }
 
                 return bit ? BitResult::StuffErrorOnes : BitResult::StuffErrorZeroes;
             }
             else
             {
                 // mark the stuffed bit with the square
-                mResults->AddMarker(mData->GetSampleNumber(), AnalyzerResults::Square, mChannel);
+                mResults->AddMarker(mData->GetSampleNumber(), AnalyzerResults::X, mChannel);
 
                 // The last bit was now the stuffed bit, reset state to that
                 mLastBit = stuffBit;
@@ -208,10 +216,10 @@ void ToyotaBeanAnalyzer::WorkerThread()
             mSerial->AdvanceToNextEdge();
 
         auto frameStartSample = mSerial->GetSampleNumber();
-        mResults->AddMarker(mSerial->GetSampleNumber(), AnalyzerResults::Start, mSettings->mInputChannel);
-
-        // Advance to the center of the first bit after the start bit
+        
+        // Advance to the center of the start bit
         mSerial->Advance(samples_per_bit / 2);
+        mResults->AddMarker(mSerial->GetSampleNumber(), AnalyzerResults::Start, mSettings->mInputChannel);
 
         BitUnstuffer bits(mSerial, mResults, mSettings->mInputChannel, samples_per_bit);
 
@@ -240,8 +248,6 @@ void ToyotaBeanAnalyzer::WorkerThread()
                 bq.push(bit == BitResult::One);
             }
         }
-
-        mResults->AddMarker(mSerial->GetSampleNumber(), AnalyzerResults::Stop, mSettings->mInputChannel);
 
         if (err)
         {

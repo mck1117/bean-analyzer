@@ -119,12 +119,25 @@ private:
     size_t mBitsInSequence = 1;
 };
 
+struct StampedBit
+{
+    bool Bit;
+    U64 Time;
+};
+
+struct StampedByte
+{
+    uint8_t Data = 0;
+    U64 Start;
+    U64 End;
+};
+
 struct BitQueue
 {
 public:
-    void push(bool bit)
+    void push(bool bit, U64 time)
     {
-        mBits.push(bit);
+        mBits.push({bit, time});
     }
 
     bool empty() const
@@ -137,34 +150,47 @@ public:
         return mBits.size();
     }
 
-    bool ReadBit()
+    StampedBit ReadBit()
     {
-        bool x = mBits.front();
+        auto x = mBits.front();
         mBits.pop();
         return x;
     }
 
-    uint8_t ReadBits(size_t bits)
+    StampedByte ReadBits(size_t bits)
     {
-        uint8_t result = 0;
+        StampedByte result;
+
+        {
+            auto b = ReadBit();
+            result.Start = b.Time;
+            result.Data = b.Bit ? 1 : 0;
+        }
 
         // MSB first
-        for (size_t i = 0; i < bits; i++)
+        for (size_t i = 0; i < bits - 2; i++)
         {
-            result = result << 1;
-            result |= (ReadBit() ? 1 : 0);
+            result.Data = result.Data << 1;
+            result.Data |= (ReadBit().Bit ? 1 : 0);
+        }
+
+        {
+            auto b = ReadBit();
+            result.Data = result.Data << 1;
+            result.Data |= (b.Bit ? 1 : 0);
+            result.End = b.Time;
         }
 
         return result;
     }
 
-    uint8_t ReadByte()
+    StampedByte ReadByte()
     {
         return ReadBits(8);
     }
 
 private:
-    std::queue<bool> mBits;
+    std::queue<StampedBit> mBits;
 };
 
 void ToyotaBeanAnalyzer::WaitFor6LowBits(U32 bitTime)
@@ -186,6 +212,16 @@ void ToyotaBeanAnalyzer::WaitFor6LowBits(U32 bitTime)
         mSerial->AdvanceToNextEdge();
         mSerial->AdvanceToNextEdge();
     }
+}
+
+static void MakeFrameFromBits(StampedByte data, std::unique_ptr<ToyotaBeanAnalyzerResults>& results, uint8_t type)
+{
+    Frame f;
+    f.mStartingSampleInclusive = data.Start;
+    f.mEndingSampleInclusive = data.End;
+    f.mData1 = data.Data;
+    f.mType = type;
+    results->AddFrame(f);
 }
 
 void ToyotaBeanAnalyzer::WorkerThread()
@@ -246,7 +282,7 @@ void ToyotaBeanAnalyzer::WorkerThread()
             else
             {
                 // Normal bit - enqueue it
-                bq.push(bit == BitResult::One);
+                bq.push(bit == BitResult::One, mSerial->GetSampleNumber());
             }
         }
 
@@ -265,12 +301,15 @@ void ToyotaBeanAnalyzer::WorkerThread()
         }
 
         // Priority
-        uint8_t pri = bq.ReadBits(4);
-        uint8_t ml = bq.ReadBits(4);
+        auto pri = bq.ReadBits(4);
+        MakeFrameFromBits(pri, mResults, 1);
+
+        auto ml = bq.ReadBits(4);
+        MakeFrameFromBits(ml, mResults, 2);
 
         // Now we know exactly how many bits we should have read in
         // TODO: what is correct value here?
-        size_t expectedBitsRemaining = 8 * ml + 11;
+        size_t expectedBitsRemaining = 8 * ml.Data + 11;
 
         if (bq.size() != expectedBitsRemaining)
         {
@@ -278,47 +317,45 @@ void ToyotaBeanAnalyzer::WorkerThread()
             continue;
         }
 
-        uint8_t dstId = bq.ReadByte();
-        uint8_t mesId = bq.ReadByte();
+        auto dstId = bq.ReadByte();
+        MakeFrameFromBits(dstId, mResults, 3);
+        auto mesId = bq.ReadByte();
+        MakeFrameFromBits(mesId, mResults, 4);
         uint8_t data[11];
 
         // Actual number of data bytes is (ml - 3 for dstId, mesId, crc)
-        size_t dataBytes = ml - 3;
+        size_t dataBytes = ml.Data - 3;
         for (size_t i = 0; i < dataBytes; i++)
         {
-           data[i] = bq.ReadByte();
+            auto b = bq.ReadByte();
+            MakeFrameFromBits(b, mResults, 5);
+            data[i] = b.Data;
         }
 
-        uint8_t crc = bq.ReadByte();
-        uint8_t eom = bq.ReadBits(8);
+        auto crc = bq.ReadByte();
+        MakeFrameFromBits(crc, mResults, 6);
+        auto eom = bq.ReadByte();
+        MakeFrameFromBits(eom, mResults, 7);
 
         // EOM should equal exactly 0b01111110
-        if (eom != 0b0111'1110)
+        if (eom.Data != 0b0111'1110)
         {
             continue;
         }
 
-        uint8_t rsp = bq.ReadBits(2);
+        auto rsp = bq.ReadBits(2);
+        MakeFrameFromBits(rsp, mResults, 8);
 
         // We have a frame to save
         FrameV2 frame;
-        frame.AddInteger("PRI", pri);
-        frame.AddInteger("ML", ml);
-        frame.AddInteger("DST-ID", dstId);
-        frame.AddInteger("MES-ID", mesId);
+        frame.AddInteger("PRI", pri.Data);
+        frame.AddInteger("ML", ml.Data);
+        frame.AddInteger("DST-ID", dstId.Data);
+        frame.AddInteger("MES-ID", mesId.Data);
         frame.AddByteArray("Data", data, dataBytes);
-        frame.AddInteger("CRC8", crc);
-        frame.AddInteger("RSP", rsp);
+        frame.AddInteger("CRC8", crc.Data);
+        frame.AddInteger("RSP", rsp.Data);
         mResults->AddFrameV2(frame, "bean", frameStartSample, mSerial->GetSampleNumber());
-
-        Frame f;
-        f.mStartingSampleInclusive = frameStartSample;
-        f.mEndingSampleInclusive = mSerial->GetSampleNumber();
-        f.mType = 0;
-        f.mData1 = dstId;
-        f.mData2 = mesId;
-        mResults->AddFrame(f);
-
         mResults->CommitResults();
         ReportProgress(mSerial->GetSampleNumber());
 

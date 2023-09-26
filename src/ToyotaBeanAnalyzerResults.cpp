@@ -6,6 +6,7 @@
 #include <AnalyzerHelpers.h>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 
 ToyotaBeanAnalyzerResults::ToyotaBeanAnalyzerResults(ToyotaBeanAnalyzer* analyzer, ToyotaBeanAnalyzerSettings* settings)
     : AnalyzerResults(), mSettings(settings), mAnalyzer(analyzer)
@@ -19,9 +20,27 @@ void ToyotaBeanAnalyzerResults::GenerateBubbleText(U64 frame_index, Channel& cha
     ClearResultStrings();
     Frame frame = GetFrame(frame_index);
 
-    char number_str[128];
-    AnalyzerHelpers::GetNumberString(frame.mData1, display_base, 8, number_str, 128);
-    AddResultString(number_str);
+    std::stringstream ss;
+
+    switch (frame.mType)
+    {
+    case 1: ss << "PRI: "; break;
+    case 2: ss << "ML: "; break;
+    case 3: ss << "DST-ID: "; break;
+    case 4: ss << "MES-ID: "; break;
+    case 5: break; // no prefix for data
+    case 6: ss << "CRC: "; break;
+    case 7: ss << "EOM"; break;
+    }
+
+    if (frame.mType != 7)
+    {
+        char number_str[128];
+        AnalyzerHelpers::GetNumberString(frame.mData1, display_base, 8, number_str, 128);
+        ss << number_str;
+    }
+
+    AddResultString(ss.str().c_str());
 }
 
 void ToyotaBeanAnalyzerResults::GenerateExportFile(const char* file, DisplayBase display_base, U32 export_type_user_id)

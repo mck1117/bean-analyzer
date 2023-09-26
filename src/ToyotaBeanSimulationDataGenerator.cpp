@@ -18,7 +18,7 @@ void ToyotaBeanSimulationDataGenerator::Initialize(U32 simulation_sample_rate, T
 
     mSerialSimulationData.SetChannel(mSettings->mInputChannel);
     mSerialSimulationData.SetSampleRate(simulation_sample_rate);
-    mSerialSimulationData.SetInitialBitState(BIT_HIGH);
+    mSerialSimulationData.SetInitialBitState(BIT_LOW);
 }
 
 U32 ToyotaBeanSimulationDataGenerator::GenerateSimulationData(
@@ -36,36 +36,62 @@ U32 ToyotaBeanSimulationDataGenerator::GenerateSimulationData(
     return 1;
 }
 
+struct BitStuffer
+{
+    BitStuffer(SimulationChannelDescriptor& data) : mData(data) { }
+
+    void Write(bool b, U32 samples_per_bit)
+    {
+        mData.TransitionIfNeeded(b ? BIT_HIGH : BIT_LOW);
+        mData.Advance(samples_per_bit);
+        
+        if (b != mLastBit)
+        {
+            mLastBit = b;
+            mBitCount = 1;
+        }
+        else
+        {
+            mBitCount++;
+        }
+        
+        if (mBitCount == 5)
+        {
+            mLastBit = !b;
+            mBitCount = 1;
+
+            mData.TransitionIfNeeded(b ? BIT_LOW : BIT_HIGH);
+            mData.Advance(samples_per_bit);
+        }
+    }
+
+private:
+    SimulationChannelDescriptor& mData;
+
+    bool mLastBit = true;
+    size_t mBitCount = 1;
+};
+
 void ToyotaBeanSimulationDataGenerator::CreateSerialByte()
 {
     U32 samples_per_bit = mSimulationSampleRateHz / mSettings->mBitRate;
 
-    U8 byte = mSerialText[mStringIndex];
-    mStringIndex++;
-    if (mStringIndex == mSerialText.size())
-        mStringIndex = 0;
+    mSerialSimulationData.Advance(10 * samples_per_bit);
 
-    // we're currenty high
-    // let's move forward a little
-    mSerialSimulationData.Advance(samples_per_bit * 10);
+    // start bit
+    mSerialSimulationData.TransitionIfNeeded(BIT_LOW);
+    mSerialSimulationData.Advance(samples_per_bit);
 
-    mSerialSimulationData.Transition();             // low-going edge for start bit
-    mSerialSimulationData.Advance(samples_per_bit); // add start bit time
+    BitStuffer bs(mSerialSimulationData);
 
-    U8 mask = 0x1 << 7;
-    for (U32 i = 0; i < 8; i++)
+    // 64 random data bits
+    for (size_t i = 0; i < 64; i++)
     {
-        if ((byte & mask) != 0)
-            mSerialSimulationData.TransitionIfNeeded(BIT_HIGH);
-        else
-            mSerialSimulationData.TransitionIfNeeded(BIT_LOW);
-
-        mSerialSimulationData.Advance(samples_per_bit);
-        mask = mask >> 1;
+        bs.Write((rand() & 1) == 0, samples_per_bit);
+        // bs.Write(false, samples_per_bit);
+        // bs.Write(true, samples_per_bit);
     }
 
-    mSerialSimulationData.TransitionIfNeeded(BIT_HIGH); // we need to end high
-
-    // lets pad the end a bit for the stop bit:
-    mSerialSimulationData.Advance(samples_per_bit);
+    mSerialSimulationData.TransitionIfNeeded(BIT_LOW);
+    mSerialSimulationData.Advance(10 * samples_per_bit);
 }

@@ -209,11 +209,13 @@ void ToyotaBeanAnalyzer::WaitFor6LowBits(U32 bitTime)
     }
 }
 
-static void MakeFrameFromBits(StampedByte data, std::unique_ptr<ToyotaBeanAnalyzerResults>& results, uint8_t type)
+static void MakeFrameFromBits(StampedByte data, std::unique_ptr<ToyotaBeanAnalyzerResults>& results, uint8_t type, U32 samples_per_bit)
 {
+    U32 offset = 0.4f * samples_per_bit;
+
     Frame f;
-    f.mStartingSampleInclusive = data.Start;
-    f.mEndingSampleInclusive = data.End;
+    f.mStartingSampleInclusive = data.Start - offset;
+    f.mEndingSampleInclusive = data.End + offset;
     f.mData1 = data.Data;
     f.mType = type;
     results->AddFrame(f);
@@ -319,10 +321,10 @@ void ToyotaBeanAnalyzer::WorkerThread()
 
         // Priority
         auto pri = bq.ReadBits(4);
-        MakeFrameFromBits(pri, mResults, 1);
+        MakeFrameFromBits(pri, mResults, 1, samples_per_bit);
 
         auto ml = bq.ReadBits(4);
-        MakeFrameFromBits(ml, mResults, 2);
+        MakeFrameFromBits(ml, mResults, 2, samples_per_bit);
 
         // Now we know exactly how many bits we should have read in
         // TODO: what is correct value here?
@@ -335,9 +337,9 @@ void ToyotaBeanAnalyzer::WorkerThread()
         }
 
         auto dstId = bq.ReadByte();
-        MakeFrameFromBits(dstId, mResults, 3);
+        MakeFrameFromBits(dstId, mResults, 3, samples_per_bit);
         auto mesId = bq.ReadByte();
-        MakeFrameFromBits(mesId, mResults, 4);
+        MakeFrameFromBits(mesId, mResults, 4, samples_per_bit);
         uint8_t data[11];
 
         // Actual number of data bytes is (ml - 3 for dstId, mesId, crc)
@@ -345,17 +347,17 @@ void ToyotaBeanAnalyzer::WorkerThread()
         for (size_t i = 0; i < dataBytes; i++)
         {
             auto b = bq.ReadByte();
-            MakeFrameFromBits(b, mResults, 5);
+            MakeFrameFromBits(b, mResults, 5, samples_per_bit);
             data[i] = b.Data;
         }
 
         auto crc = bq.ReadByte();
-        MakeFrameFromBits(crc, mResults, 6);
+        MakeFrameFromBits(crc, mResults, 6, samples_per_bit);
         auto eom = bq.ReadBits(5);
         // fudge the end time of EOM
         eom.End += 3 * samples_per_bit;
         U64 eomEnd = eom.End;
-        MakeFrameFromBits(eom, mResults, 7);
+        MakeFrameFromBits(eom, mResults, 7, samples_per_bit);
 
         // EOM should equal exactly 0b01111110, but the last 3 bits aren't captured in this layer
         if (eom.Data != 0b01111)
@@ -368,7 +370,7 @@ void ToyotaBeanAnalyzer::WorkerThread()
         rsp.Data = (ack1 ? 2 : 0) + (ack2 ? 1 : 0);
         rsp.Start = eomEnd + samples_per_bit;
         rsp.End = rsp.Start + samples_per_bit;
-        MakeFrameFromBits(rsp, mResults, 8);
+        MakeFrameFromBits(rsp, mResults, 8, samples_per_bit);
 
         // We have a frame to save
         FrameV2 frame;

@@ -114,8 +114,19 @@ void ToyotaBeanSimulationDataGenerator::CreateSerialByte()
     // CRC byte (todo: real CRC!)
     bs.WriteByte(rand() & 0xFF, samples_per_bit);
 
-    // End of frame
-    bs.WriteByte(0b01111110, samples_per_bit);
+    // End of frame (this doesn't get stuffed!)
+    mSerialSimulationData.TransitionIfNeeded(BIT_LOW);
+    mSerialSimulationData.Advance(samples_per_bit);
+    mSerialSimulationData.TransitionIfNeeded(BIT_HIGH);
+    mSerialSimulationData.Advance(6 * samples_per_bit);
+    mSerialSimulationData.TransitionIfNeeded(BIT_LOW);
+    mSerialSimulationData.Advance(samples_per_bit);
+
+    // ACK bits: 10 = ACK, 01 = NAK
+    mSerialSimulationData.TransitionIfNeeded((rand() & 1) == 0 ? BIT_HIGH : BIT_LOW);
+    mSerialSimulationData.Advance(samples_per_bit);
+    mSerialSimulationData.TransitionIfNeeded((rand() & 1) == 0 ? BIT_HIGH : BIT_LOW);
+    mSerialSimulationData.Advance(samples_per_bit);
 
     mSerialSimulationData.TransitionIfNeeded(BIT_LOW);
     mSerialSimulationData.Advance(10 * samples_per_bit);

@@ -40,12 +40,17 @@ public:
     {
     }
 
-    BitResult ReadBit()
+    bool ReadBitNostuff()
     {
         mData->Advance(mBitTime);
+        return mData->GetBitState() == BIT_HIGH;
+    }
+
+    BitResult ReadBit()
+    {
+        bool bit = ReadBitNostuff();
         // This is a data bit, mark it with the dot
         mResults->AddMarker(mData->GetSampleNumber(), AnalyzerResults::Dot, mChannel);
-        bool bit = mData->GetBitState() == BIT_HIGH;
 
         bool expectStuff = false;
 
@@ -68,23 +73,13 @@ public:
 
         if (expectStuff)
         {
-            mData->Advance(mBitTime);
-            bool stuffBit = mData->GetBitState() == BIT_HIGH;
+            bool stuffBit = ReadBitNostuff();
 
             // Stuff bit should be opposite the last data bit
             // If not, it's a bit stuffing error
             if (stuffBit == bit)
             {
-                if (bit)
-                {
-                    // Mis-stuff high is error
-                    mResults->AddMarker(mData->GetSampleNumber(), AnalyzerResults::ErrorX, mChannel);
-                }
-                else
-                {
-                    // Mis-stuff low is EOF
-                    mResults->AddMarker(mData->GetSampleNumber(), AnalyzerResults::Stop, mChannel);
-                }
+                mResults->AddMarker(mData->GetSampleNumber(), AnalyzerResults::Dot, mChannel);
 
                 return bit ? BitResult::StuffErrorOnes : BitResult::StuffErrorZeroes;
             }
@@ -239,8 +234,8 @@ void ToyotaBeanAnalyzer::WorkerThread()
     // 8 - MES-ID message ID
     // 8*1-11 - 1-11 data bytes
     // 8 - CRC error check
-    // 8 - EOM end of frame
-    // 2 - RSP response (?)
+    // 8 - EOM end of frame - 01111110 (no stuffing)
+    // 2 - RSP response. 10 = ACK, 01 = NAK
     // 6 - EOF
 
     // Make sure we're between frames, so that we start decoding the first frame in the right spot
@@ -270,13 +265,13 @@ void ToyotaBeanAnalyzer::WorkerThread()
 
             if (bit == BitResult::StuffErrorZeroes)
             {
-                // End of frame - 6 consecutive low bits
+                // We shouldn't get 6 consecutive zeroes until after EOM
+                err = true;
                 break;
             }
             else if (bit == BitResult::StuffErrorOnes)
             {
-                // TODO: what do we do about a 6-ones-error?
-                err = true;
+                // End of message - 6 consecutive ones
                 break;
             }
             else
@@ -291,6 +286,28 @@ void ToyotaBeanAnalyzer::WorkerThread()
             WaitFor6LowBits(samples_per_bit);
             continue;
         }
+
+        // We should now be at the 6th bit of the EOM - next bit is a zero, then two ack bits, then 6 low bits
+        if (BitResult::Zero != bits.ReadBit())
+        {
+            // TODO;
+            continue;
+        }
+
+        // ack
+        auto ack1 = bits.ReadBitNostuff();
+        mResults->AddMarker(mSerial->GetSampleNumber(), AnalyzerResults::Dot, mSettings->mInputChannel);
+        auto ack2 = bits.ReadBitNostuff();
+        mResults->AddMarker(mSerial->GetSampleNumber(), AnalyzerResults::Dot, mSettings->mInputChannel);
+
+        // EOF
+        // TODO: check that these are all zeroes
+        for (int i = 0; i < 6; i++)
+        {
+            bits.ReadBitNostuff();
+        }
+
+        mResults->AddMarker(mSerial->GetSampleNumber(), AnalyzerResults::Stop, mSettings->mInputChannel);
 
         // Now, decode that sequence of bits in to a frame
 
@@ -309,7 +326,7 @@ void ToyotaBeanAnalyzer::WorkerThread()
 
         // Now we know exactly how many bits we should have read in
         // TODO: what is correct value here?
-        size_t expectedBitsRemaining = 8 * ml.Data + 11;
+        size_t expectedBitsRemaining = 8 * ml.Data + 5;
 
         if (bq.size() != expectedBitsRemaining)
         {
@@ -334,16 +351,23 @@ void ToyotaBeanAnalyzer::WorkerThread()
 
         auto crc = bq.ReadByte();
         MakeFrameFromBits(crc, mResults, 6);
-        auto eom = bq.ReadByte();
+        auto eom = bq.ReadBits(5);
+        // fudge the end time of EOM
+        eom.End += 3 * samples_per_bit;
+        U64 eomEnd = eom.End;
         MakeFrameFromBits(eom, mResults, 7);
 
-        // EOM should equal exactly 0b01111110
-        if (eom.Data != 0b01111110)
+        // EOM should equal exactly 0b01111110, but the last 3 bits aren't captured in this layer
+        if (eom.Data != 0b01111)
         {
             continue;
         }
 
-        auto rsp = bq.ReadBits(2);
+        // Fake the RSP bits/timing
+        StampedByte rsp;
+        rsp.Data = (ack1 ? 2 : 0) + (ack2 ? 1 : 0);
+        rsp.Start = eomEnd + samples_per_bit;
+        rsp.End = rsp.Start + samples_per_bit;
         MakeFrameFromBits(rsp, mResults, 8);
 
         // We have a frame to save

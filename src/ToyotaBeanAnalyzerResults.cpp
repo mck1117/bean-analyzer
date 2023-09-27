@@ -31,6 +31,7 @@ void ToyotaBeanAnalyzerResults::GenerateBubbleText(U64 frame_index, Channel& cha
     case 5: break; // no prefix for data
     case 6: ss << "CRC: "; break;
     case 7: ss << "EOM"; break;
+    case 8: ss << "RSP: "; break;
     }
 
     if (frame.mType != 7)

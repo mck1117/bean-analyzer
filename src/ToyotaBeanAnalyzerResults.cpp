@@ -29,12 +29,13 @@ void ToyotaBeanAnalyzerResults::GenerateBubbleText(U64 frame_index, Channel& cha
     case 3: ss << "DST-ID: "; break;
     case 4: ss << "MES-ID: "; break;
     case 5: break; // no prefix for data
-    case 6: ss << "CRC: "; break;
+    case 6: ss << "CRC OK"; break;
     case 7: ss << "EOM"; break;
     case 8: ss << "RSP: "; break;
+    case 9: ss << "CRC BAD: "; break;
     }
 
-    if (frame.mType != 7)
+    if (frame.mType != 7 && frame.mType != 6)
     {
         char number_str[128];
         AnalyzerHelpers::GetNumberString(frame.mData1, display_base, 8, number_str, 128);

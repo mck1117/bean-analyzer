@@ -42,7 +42,17 @@ public:
 
     bool ReadBitNostuff()
     {
-        mData->Advance(mBitTime);
+        // If there's a transition in the next bit time, resync on it
+        if (mData->WouldAdvancingCauseTransition(mBitTime))
+        {
+            mData->AdvanceToNextEdge();
+            mData->Advance(mBitTime / 2);
+        }
+        else
+        {
+            mData->Advance(mBitTime);
+        }
+
         return mData->GetBitState() == BIT_HIGH;
     }
 
@@ -316,6 +326,7 @@ void ToyotaBeanAnalyzer::WorkerThread()
         if (bq.size() < 8)
         {
             // TODO: not enough bits to read size!
+            WaitFor6LowBits(samples_per_bit);
             continue;
         }
 
@@ -328,9 +339,9 @@ void ToyotaBeanAnalyzer::WorkerThread()
 
         // Now we know exactly how many bits we should have read in
         // TODO: what is correct value here?
-        size_t expectedBitsRemaining = 8 * ml.Data + 5;
+        size_t expectedBitsRemaining = 8 * ml.Data + 13;
 
-        if (bq.size() != expectedBitsRemaining)
+        if (bq.size() < expectedBitsRemaining)
         {
             // TODO: error, wrong number of bits
             continue;
@@ -342,8 +353,8 @@ void ToyotaBeanAnalyzer::WorkerThread()
         MakeFrameFromBits(mesId, mResults, 4, samples_per_bit);
         uint8_t data[11];
 
-        // Actual number of data bytes is (ml - 3 for dstId, mesId, crc)
-        size_t dataBytes = ml.Data - 3;
+        // Actual number of data bytes is (ml - 2 for dstId, mesId)
+        size_t dataBytes = ml.Data - 2;
         for (size_t i = 0; i < dataBytes; i++)
         {
             auto b = bq.ReadByte();
